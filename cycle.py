@@ -2,7 +2,7 @@ import copy
 import operators as op, fitness as fitn
 import initialPopulation as initPop
 
-def basicSelection(population, referenceCromossome, evaluatedPopulation, crossoverType, crossoverProbability, tasksNumPerc, tasksMutationProbability, operatorsMutationProbability, drivenMutation, drivenMutationPart, limitBestFitnessRepetionCount, bestFitnessRepetionCount, drivenMutatedIndividuals, drivenMutatedGenerations, TPweight, precisenessWeight, completenessWeight, elitismPerc, sortedEvaluatedPopulation, evaluateCompANDPrec, selectionOp, currentGeneration, logSizeAndMaxTraceSize, numberOfRandomTracesPerLogTrace, traceSizeStartFactor, averageEnabledTasks):
+def basicSelection(population, referenceCromossome, evaluatedPopulation, crossoverType, crossoverProbability, crossoverTasksNumPerc, mutationType, mutationTasksNumPerc, tasksMutationProbability, operatorsMutationProbability, drivenMutation, drivenMutationPart, limitBestFitnessRepetionCount, bestFitnessRepetionCount, drivenMutatedIndividuals, drivenMutatedGenerations, TPweight, precisenessWeight, simplicityWeight, completenessWeight, elitismPerc, sortedEvaluatedPopulation, selectionOp, currentGeneration, completenessAttemptFactor1, completenessAttemptFactor2, numberOfcyclesAfterDrivenMutation):
     drivenMutationCycle = 0
     auxPopulation = copy.deepcopy(population)
     auxDrivenMutatedIndividuals = copy.deepcopy(drivenMutatedIndividuals)
@@ -30,17 +30,15 @@ def basicSelection(population, referenceCromossome, evaluatedPopulation, crossov
         if (chosenIndividual1[1] == 1) or (chosenIndividual2[1] == 1):
             auxDrivenMutatedIndividuals[i] = 1
             auxDrivenMutatedIndividuals[i + 1] = 1
-        (auxPopulation[i], auxPopulation[i + 1]) = op.crossoverPerProcess(crossoverType, crossoverProbability, tasksNumPerc, auxPopulation[i], auxPopulation[i+1])
+        (auxPopulation[i], auxPopulation[i + 1]) = op.crossoverPerProcess(crossoverType, crossoverProbability, crossoverTasksNumPerc, auxPopulation[i], auxPopulation[i+1], i, evaluatedPopulation)
         if drivenMutationCycle == 0:
-            op.tasksMutation(auxPopulation[i], tasksMutationProbability)
-            op.tasksMutation(auxPopulation[i+1], tasksMutationProbability)
-            op.operatorsMutation(auxPopulation[i], operatorsMutationProbability)
-            op.operatorsMutation(auxPopulation[i + 1], operatorsMutationProbability)
+            op.mutation(auxPopulation[i], tasksMutationProbability, operatorsMutationProbability, mutationType, mutationTasksNumPerc)
+            op.mutation(auxPopulation[i+1], tasksMutationProbability, operatorsMutationProbability, mutationType, mutationTasksNumPerc)
         i = i + 2
         if (i + 1 == len(population)) and (len(population) % 2 == 1):
             i = i - 1
     if (elitismPerc > 0) or (drivenMutationCycle == 1):
-        evaluatedAuxPopulation = fitn.evaluationPopulation(auxPopulation, referenceCromossome, TPweight, precisenessWeight, evaluateCompANDPrec, completenessWeight, logSizeAndMaxTraceSize, numberOfRandomTracesPerLogTrace, traceSizeStartFactor, averageEnabledTasks)
+        evaluatedAuxPopulation = fitn.evaluationPopulation(auxPopulation, referenceCromossome, TPweight, precisenessWeight, simplicityWeight, completenessWeight, completenessAttemptFactor1, completenessAttemptFactor2, selectionOp)
         sortedEvaluatedAuxPopulation = sorted(evaluatedAuxPopulation[1], reverse=True, key=takeFirst)
     if drivenMutatedGenerations >= 1:
         drivenMutatedGenerations = drivenMutatedGenerations - 1
@@ -50,10 +48,10 @@ def basicSelection(population, referenceCromossome, evaluatedPopulation, crossov
     drivenMutatedIndividuals = copy.deepcopy(auxDrivenMutatedIndividuals)
     if drivenMutationCycle == 1:
         drivenMutatedIndividuals = op.drivenMutation(auxPopulation, sortedEvaluatedAuxPopulation, drivenMutationPart, drivenMutatedIndividuals)
-        drivenMutatedGenerations = 10
+        drivenMutatedGenerations = numberOfcyclesAfterDrivenMutation
     if elitismPerc > 0:
         op.elitism(population, elitismPerc, sortedEvaluatedAuxPopulation, sortedEvaluatedPopulation, auxPopulation, drivenMutatedIndividuals)
-    evaluatedNewPopulation = fitn.evaluationPopulation(auxPopulation, referenceCromossome, TPweight, precisenessWeight, evaluateCompANDPrec, completenessWeight, logSizeAndMaxTraceSize, numberOfRandomTracesPerLogTrace, traceSizeStartFactor, averageEnabledTasks)
+    evaluatedNewPopulation = fitn.evaluationPopulation(auxPopulation, referenceCromossome, TPweight, precisenessWeight, simplicityWeight, completenessWeight, completenessAttemptFactor1, completenessAttemptFactor2, selectionOp)
     return (auxPopulation, evaluatedNewPopulation, drivenMutatedIndividuals, drivenMutatedGenerations)
 
 def createIndividualTask():
@@ -77,79 +75,62 @@ def calcHammingDistance(individual1, individual2):
                 equalSum = equalSum + 1
             if individual1[i][1][j] == individual2[i][1][j]:
                 equalSum = equalSum + 1
-    return (equalSum / (( i + 1 ) * ( j + 1 ) * 2 ))
+    return (equalSum / ((i + 1) * (j + 1) * 2))
 
-def hybridPopulationSelection(population, referenceCromossome, evaluatedPopulation, crossoverType, crossoverProbability, tasksMutationProbability, operatorsMutationProbability, drivenMutatedIndividuals, drivenMutatedGenerations, TPweight, precisenessWeight, completenessWeight, sortedEvaluatedPopulation, evaluateCompANDPrec, selectionOp, lambdaValue, HammingThreshold, i, logSizeAndMaxTraceSize, numberOfRandomTracesPerLogTrace, traceSizeStartFactor):
-    offsprings = [initializeIndividual() for _ in range(int(lambdaValue * len(population)))]
-    i = 0
-    while i < len(offsprings):
-        offsprings[i] = copy.deepcopy(population[op.parentSelection(evaluatedPopulation, sortedEvaluatedPopulation, selectionOp)])
-        offsprings[i + 1] = copy.deepcopy(population[op.parentSelection(evaluatedPopulation, sortedEvaluatedPopulation, selectionOp)])
-        op.crossoverPerProcess(crossoverType, crossoverProbability, offsprings[i], offsprings[i + 1])
-        op.tasksMutation(offsprings[i], tasksMutationProbability)
-        op.tasksMutation(offsprings[i + 1], tasksMutationProbability)
-        op.operatorsMutation(offsprings[i], operatorsMutationProbability)
-        op.operatorsMutation(offsprings[i + 1], operatorsMutationProbability)
-        i = i + 2
-        if (i + 1 == len(population)) and (len(population) % 2 == 1):
-            i = i - 1
-    popPlusOff = population + offsprings
-    evaluatedPopPlusOff = fitn.evaluationPopulation(popPlusOff, referenceCromossome, TPweight, precisenessWeight, evaluateCompANDPrec, completenessWeight)
-    sortedEvaluatedPopPlusOff = sorted(evaluatedPopPlusOff[1], reverse=True, key=takeFirst)
-    auxPopulation = copy.deepcopy(population)
-    auxPopulation[0] = copy.deepcopy(popPlusOff[sortedEvaluatedPopPlusOff[0][4]])
-    i = 1
-    j = 1
-    while i < len(auxPopulation):
-        if (len(popPlusOff) - j) > (len(auxPopulation) - i):
-            if calcHammingDistance(popPlusOff[sortedEvaluatedPopPlusOff[0][4]], popPlusOff[sortedEvaluatedPopPlusOff[j][4]]) < HammingThreshold:
-                auxPopulation[i] = copy.deepcopy(popPlusOff[sortedEvaluatedPopPlusOff[j][4]])
-                i = i + 1
-        else:
-            auxPopulation[i] = copy.deepcopy(popPlusOff[sortedEvaluatedPopPlusOff[j][4]])
-            i = i + 1
-        j = j + 1
-
-    evaluatedNewPopulation = fitn.evaluationPopulation(auxPopulation, referenceCromossome, TPweight, precisenessWeight, evaluateCompANDPrec, completenessWeight)
+def hybridPopulationSelection(population, referenceCromossome, evaluatedPopulation, crossoverType, crossoverProbability, tasksMutationProbability, operatorsMutationProbability, drivenMutatedIndividuals, drivenMutatedGenerations, TPweight, precisenessWeight, simplicityWeight, completenessWeight, sortedEvaluatedPopulation, selectionOp, lambdaValue, HammingThreshold, i):
+    #offsprings = [initializeIndividual() for _ in range(int(lambdaValue * len(population)))]
+    #i = 0
+    #while i < len(offsprings):
+    #    offsprings[i] = copy.deepcopy(population[op.parentSelection(evaluatedPopulation, sortedEvaluatedPopulation, selectionOp)])
+    #    offsprings[i + 1] = copy.deepcopy(population[op.parentSelection(evaluatedPopulation, sortedEvaluatedPopulation, selectionOp)])
+    #    op.crossoverPerProcess(crossoverType, crossoverProbability, offsprings[i], offsprings[i + 1])
+    #    op.tasksMutation(offsprings[i], tasksMutationProbability)
+    #    op.tasksMutation(offsprings[i + 1], tasksMutationProbability)
+    #    op.operatorsMutation(offsprings[i], operatorsMutationProbability)
+    #    op.operatorsMutation(offsprings[i + 1], operatorsMutationProbability)
+    #    i = i + 2
+    #    if (i + 1 == len(population)) and (len(population) % 2 == 1):
+    #        i = i - 1
+    #popPlusOff = population + offsprings
+    #evaluatedPopPlusOff = fitn.evaluationPopulation(popPlusOff, referenceCromossome, TPweight, precisenessWeight, simplicityWeight, completenessWeight)
+    #sortedEvaluatedPopPlusOff = sorted(evaluatedPopPlusOff[1], reverse=True, key=takeFirst)
+    #auxPopulation = copy.deepcopy(population)
+    #auxPopulation[0] = copy.deepcopy(popPlusOff[sortedEvaluatedPopPlusOff[0][5]])
+    #i = 1
+    #j = 1
+    #while i < len(auxPopulation):
+    #    if (len(popPlusOff) - j) > (len(auxPopulation) - i):
+    #        if calcHammingDistance(popPlusOff[sortedEvaluatedPopPlusOff[0][5]], popPlusOff[sortedEvaluatedPopPlusOff[j][5]]) < HammingThreshold:
+    #            auxPopulation[i] = copy.deepcopy(popPlusOff[sortedEvaluatedPopPlusOff[j][5]])
+    #            i = i + 1
+    #    else:
+    #        auxPopulation[i] = copy.deepcopy(popPlusOff[sortedEvaluatedPopPlusOff[j][5]])
+    #        i = i + 1
+    #    j = j + 1
+    #evaluatedNewPopulation = fitn.evaluationPopulation(auxPopulation, referenceCromossome, TPweight, precisenessWeight, simplicityWeight, completenessWeight)
     return (auxPopulation, evaluatedNewPopulation)
 
-def generation(population, referenceCromossome, evaluatedPopulation, crossoverType, crossoverProbability, tasksNumPerc, tasksMutationProbability, operatorsMutationProbability, drivenMutation, drivenMutationPart, limitBestFitnessRepetionCount, bestFitnessRepetionCount, drivenMutatedIndividuals, drivenMutatedGenerations, TPweight, precisenessWeight, completenessWeight, elitismPerc, sortedEvaluatedPopulation, evaluateCompANDPrec, selectionOp, selectionTp, lambdaValue, HammingThreshold, i, logSizeAndMaxTraceSize, numberOfRandomTracesPerLogTrace, traceSizeStartFactor, averageEnabledTasks):
+def generation(population, referenceCromossome, evaluatedPopulation, crossoverType, crossoverProbability, crossoverTasksNumPerc, mutationType, mutationTasksNumPerc, tasksMutationProbability, operatorsMutationProbability, drivenMutation, drivenMutationPart, limitBestFitnessRepetionCount, bestFitnessRepetionCount, drivenMutatedIndividuals, drivenMutatedGenerations, TPweight, precisenessWeight, simplicityWeight, completenessWeight, elitismPerc, sortedEvaluatedPopulation, selectionOp, selectionTp, lambdaValue, HammingThreshold, i, completenessAttemptFactor1, completenessAttemptFactor2, numberOfcyclesAfterDrivenMutation):
     if selectionTp == 0:
-        return basicSelection(population, referenceCromossome, evaluatedPopulation, crossoverType, crossoverProbability, tasksNumPerc, tasksMutationProbability, operatorsMutationProbability, drivenMutation, drivenMutationPart, limitBestFitnessRepetionCount, bestFitnessRepetionCount, drivenMutatedIndividuals, drivenMutatedGenerations, TPweight, precisenessWeight, completenessWeight, elitismPerc, sortedEvaluatedPopulation, evaluateCompANDPrec, selectionOp, i, logSizeAndMaxTraceSize, numberOfRandomTracesPerLogTrace, traceSizeStartFactor, averageEnabledTasks)
+        return basicSelection(population, referenceCromossome, evaluatedPopulation, crossoverType, crossoverProbability, crossoverTasksNumPerc, mutationType, mutationTasksNumPerc, tasksMutationProbability, operatorsMutationProbability, drivenMutation, drivenMutationPart, limitBestFitnessRepetionCount, bestFitnessRepetionCount, drivenMutatedIndividuals, drivenMutatedGenerations, TPweight, precisenessWeight, simplicityWeight, completenessWeight, elitismPerc, sortedEvaluatedPopulation, selectionOp, i, completenessAttemptFactor1, completenessAttemptFactor2, numberOfcyclesAfterDrivenMutation)
     else:
         if selectionTp == 1:
-            return hybridPopulationSelection(population, referenceCromossome, evaluatedPopulation, sortedEvaluatedPopulation, crossoverType, crossoverProbability, tasksNumPerc, tasksMutationProbability, operatorsMutationProbability, drivenMutation, drivenMutationPart, limitBestFitnessRepetionCount, bestFitnessRepetionCount, drivenMutatedIndividuals, drivenMutatedGenerations, TPweight, precisenessWeight, completenessWeight, sortedEvaluatedPopulation, evaluateCompANDPrec, selectionOp, lambdaValue, HammingThreshold, i, logSizeAndMaxTraceSize, numberOfRandomTracesPerLogTrace, traceSizeStartFactor, averageEnabledTasks)
+            return hybridPopulationSelection(population, referenceCromossome, evaluatedPopulation, sortedEvaluatedPopulation, crossoverType, crossoverProbability, crossoverTasksNumPerc, mutationType, mutationTasksNumPerc, tasksMutationProbability, operatorsMutationProbability, drivenMutation, drivenMutationPart, limitBestFitnessRepetionCount, bestFitnessRepetionCount, drivenMutatedIndividuals, drivenMutatedGenerations, TPweight, precisenessWeight, simplicityWeight, completenessWeight, sortedEvaluatedPopulation, selectionOp, lambdaValue, HammingThreshold, i, completenessAttemptFactor1, completenessAttemptFactor2, numberOfcyclesAfterDrivenMutation)
         else:
             quit()
 
 def takeFirst(elem):
     return elem[0]
 
-#modificado
-def set_broadcast(individual,island):
-    allBests = []
-    with open('broadcast_{0}.txt'.format(island), 'r') as broad1:
-        for line in nonblank_lines(broad1):
-            allBests.append(literal_eval(line))
-    broad1.close()
-    allBests.append(individual)
-    with open('broadcast_{0}.txt'.format(island), 'w') as broad2:
-        for ini in range(len(allBests)):
-            broad2.write(str(allBests[ini]) + '\n')
-
-#modificado
 def chooseHighest(evaluatedPopulation):
-    highestValue = [-1, -1, -1, -1]
+    highestValue = [-1, -1, -1, -1, -1]
     sortedEvaluatedPopulation = sorted(evaluatedPopulation[1], reverse=True, key=takeFirst)
     highestValue[0] = sortedEvaluatedPopulation[0][0]
     highestValue[1] = sortedEvaluatedPopulation[0][1]
     highestValue[2] = sortedEvaluatedPopulation[0][2]
     highestValue[3] = sortedEvaluatedPopulation[0][3]
-    highestPosition = sortedEvaluatedPopulation[0][4]
-
-
-
-
+    highestValue[4] = sortedEvaluatedPopulation[0][4]
+    highestPosition = sortedEvaluatedPopulation[0][5]
     return ((highestValue, highestPosition), sortedEvaluatedPopulation)
 
 def chooseLowest(sortedEvaluatedPopulation):
@@ -163,8 +144,10 @@ def calculateAverage(evaluatedPopulation):
 
 def postProcessing(population):
     for i in range(len(population)):
+        fitn.adaptCromossome(population[i])
         for k in range(len(population[i])):
             population[i][k][0] = ''
             population[i][k][1] = ''
             population[i][-5][k] = ''
             population[i][-4][k] = ''
+    return

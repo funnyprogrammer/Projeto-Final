@@ -16,6 +16,10 @@ def creator(var):
     broad = open('broadcast_{0}.txt'.format(var), 'w')
     broad.close()
 
+    #cria broadcast lowest
+    broad = open('broadcastl_{0}.txt'.format(var), 'w')
+    broad.close()
+
     # cria evaluations
     eva = open('evaluation_{0}.txt'.format(var), 'w')
     eva.close()
@@ -40,7 +44,7 @@ def create_island(num_islands, num_threads):
     broad2 = open('broadcastEVA.txt', 'w')
     broad2.close()
 
-    # cria verificador
+    # cria verificador (verificar se alguma ilha não teve ind muito iguais)
     ver = open('verificador.txt', 'w')
     for i in range(num_threads):
         ver.write(str(0) + '\n')
@@ -49,4 +53,5 @@ def create_island(num_islands, num_threads):
     # cria ilhas + broadcasters + evaluations
     p = Pool(num_threads)
     p.map(creator, num_islands)
+    p.close()
 

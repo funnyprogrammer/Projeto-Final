@@ -15,21 +15,20 @@ def defineMutationProbability(tasksMutationStartProbability, tasksMutationEndPro
     return (tasksMutationProbability, operatorsMutationProbability)
 
 def rouletteSelection(evaluatedPopulation, sortedEvaluatedPopulation, drivenMutatedIndividuals, drivenMutatedEvaluatedPopulation, drivenMutatedGenerations):
-#    if drivenMutatedGenerations >= 1:
-#        limit = ran.random() * drivenMutatedEvaluatedPopulation[0]
-#        i = 0
-#        aux = drivenMutatedEvaluatedPopulation[1][i]
-#        while aux < limit:
-#            i = i + 1
-#            aux = aux + drivenMutatedEvaluatedPopulation[1][i]
-#    else:
-#        limit = ran.random() * evaluatedPopulation[0]
-#        i = 0
-#        aux = evaluatedPopulation[1][i][0]
-#        while aux < limit:
-#            i = i + 1
-#            aux = aux + evaluatedPopulation[1][i][0]
-    quit(99)
+    if drivenMutatedGenerations >= 1:
+        limit = ran.random() * drivenMutatedEvaluatedPopulation[0]
+        i = 0
+        aux = drivenMutatedEvaluatedPopulation[1][i]
+        while aux < limit:
+            i = i + 1
+            aux = aux + drivenMutatedEvaluatedPopulation[1][i]
+    else:
+        limit = ran.random() * evaluatedPopulation[0]
+        i = 0
+        aux = evaluatedPopulation[1][i][0]
+        while aux < limit:
+            i = i + 1
+            aux = aux + evaluatedPopulation[1][i][0]
     return (i, drivenMutatedIndividuals[i])
 
 def doubleTournamentSelection(evaluatedPopulation, drivenMutatedIndividuals):
@@ -49,10 +48,40 @@ def parentSelection(evaluatedPopulation, sortedEvaluatedPopulation, selectionOp,
         else:
             quit(99)
 
-def singleTaskCrossover(tasksNumPerc, cromossome1, cromossome2):
+def BVBCrossover(crossoverTasksNumPerc, cromossome1, cromossome2, i, evaluatedPopulation):
     offspring1 = copy.deepcopy(cromossome1)
     offspring2 = copy.deepcopy(cromossome2)
-    tasksNum = int(tasksNumPerc * len(initPop.alphabet))
+    if evaluatedPopulation[1][i][1] >= evaluatedPopulation[1][i + 1][1]:
+        incorreclyFiredTasks = evaluatedPopulation[1][i][6]
+    else:
+        incorreclyFiredTasks = evaluatedPopulation[1][i + 1][6]
+    if crossoverTasksNumPerc == -1:
+        tasksNum = 1
+    else:
+        tasksNum = int(crossoverTasksNumPerc * len(initPop.alphabet))
+    for i in range(tasksNum):
+        if (len(incorreclyFiredTasks)) > 0:
+            chosenTask = int(ran.choice(incorreclyFiredTasks))
+        else:
+            chosenTask = int(ran.random() * len(initPop.alphabet))
+        offspring1[(chosenTask * 2)] = cromossome2[(chosenTask * 2)]
+        offspring1[(chosenTask * 2) + 1] = cromossome2[(chosenTask * 2) + 1]
+        offspring2[(chosenTask * 2)] = cromossome1[(chosenTask * 2)]
+        offspring2[(chosenTask * 2) + 1] = cromossome1[(chosenTask * 2) + 1]
+        for j in range(len(offspring1)):
+            offspring1[j][(chosenTask * 2)] = cromossome2[j][(chosenTask * 2)]
+            offspring1[j][(chosenTask * 2) + 1] = cromossome2[j][(chosenTask * 2) + 1]
+            offspring2[j][(chosenTask * 2)] = cromossome1[j][(chosenTask * 2)]
+            offspring2[j][(chosenTask * 2) + 1] = cromossome1[j][(chosenTask * 2) + 1]
+    return (offspring2, offspring1)
+
+def singleTaskCrossover(crossoverTasksNumPerc, cromossome1, cromossome2):
+    offspring1 = copy.deepcopy(cromossome1)
+    offspring2 = copy.deepcopy(cromossome2)
+    if crossoverTasksNumPerc == -1:
+        tasksNum = 1
+    else:
+        tasksNum = int(crossoverTasksNumPerc * len(initPop.alphabet))
     for i in range(tasksNum):
         chosenTask = int(ran.random() * len(initPop.alphabet))
         offspring1[(chosenTask * 2)] = cromossome2[(chosenTask * 2)]
@@ -132,7 +161,7 @@ def singlePointCrossover(cromossome1, cromossome2):
             offspring2[j][i] = cromossome1[j][i]
     return (offspring2, offspring1)
 
-def crossoverPerProcess(crossoverType, crossoverProbability, tasksNumPerc, cromossome1, cromossome2):
+def crossoverPerProcess(crossoverType, crossoverProbability, crossoverTasksNumPerc, cromossome1, cromossome2, i, evaluatedPopulation):
     if ran.random() < crossoverProbability:
         if crossoverType == 0:
             (cromossome1, cromossome2) = singlePointCrossover(cromossome1, cromossome2)
@@ -144,83 +173,116 @@ def crossoverPerProcess(crossoverType, crossoverProbability, tasksNumPerc, cromo
                     (cromossome1, cromossome2) = uniformCrossoverPerProcess(cromossome1, cromossome2)
                 else:
                     if crossoverType == 3:
-                        (cromossome1, cromossome2) = singleTaskCrossover(tasksNumPerc, cromossome1, cromossome2)
+                        (cromossome1, cromossome2) = singleTaskCrossover(crossoverTasksNumPerc, cromossome1, cromossome2)
                     else:
-                        quit(99)
+                        if crossoverType == 4:
+                            (cromossome1, cromossome2) = BVBCrossover(crossoverTasksNumPerc, cromossome1, cromossome2, i, evaluatedPopulation)
+                        else:
+                            quit(99)
     return (cromossome1, cromossome2)
 
-def tasksMutation(cromossome, probability):
+def mutationBVB(mutationTasksNumPerc, cromossome):
+    if mutationTasksNumPerc == -1:
+        tasksNum = 1
+    else:
+        tasksNum = int(mutationTasksNumPerc * len(initPop.alphabet))
+    for i in range(tasksNum):
+        chosenTask = int(ran.random() * len(initPop.alphabet))
+        mutationType = ran.random()
+        if mutationType < 1/3:
+            position1 = ran.randrange(0, 1 + 1)
+            position2 = ran.randrange(0, 1 + 1)
+            newInput = int(ran.random() * len(initPop.alphabet))
+            if cromossome[(newInput * 2) + position1][(chosenTask * 2) + position2] == 0:
+                cromossome[(newInput * 2) + position1][(chosenTask * 2) + position2] = 1
+            else:
+                cromossome[(newInput * 2) + position1][(chosenTask * 2) + position2] = 0
+        else:
+            if mutationType > 2/3:
+                position1 = ran.randrange(0, 1 + 1)
+                position2 = ran.randrange(0, 1 + 1)
+                newOutput = int(ran.random() * len(initPop.alphabet))
+                if cromossome[(chosenTask * 2) + position1][(newOutput * 2) + position2] == 0:
+                    cromossome[(chosenTask * 2) + position1][(newOutput * 2) + position2] = 1
+                else:
+                    cromossome[(chosenTask * 2) + position1][(newOutput * 2) + position2] = 0
+            else:
+                newOperator1 = ran.randrange(0, 1 + 1)
+                newOperator2 = ran.randrange(1, 3 + 1)
+                if newOperator1 == 0:
+                    if cromossome[(chosenTask * 2)][-newOperator2]== 0:
+                        cromossome[(chosenTask * 2)][-newOperator2] = 1
+                    else:
+                        cromossome[(chosenTask * 2)][-newOperator2] = 0
+                else:
+                    if newOperator1 == 1:
+                        if cromossome[-newOperator2][(chosenTask * 2)]== 0:
+                            cromossome[-newOperator2][(chosenTask * 2)] = 1
+                        else:
+                            cromossome[-newOperator2][(chosenTask * 2)] = 0
+    return
+
+def basicMutation(cromossome, tasksMutationProbability, operatatorsMutationProbability):
     for i in range(0, len(cromossome) - 5):
         for j in range(2, len(cromossome[i]) - 3):
-            if ran.random() < probability:
+            if ran.random() < tasksMutationProbability:
                 if cromossome[i][j] == 0:
                     cromossome[i][j] = 1
                 else:
                     cromossome[i][j] = 0
-
-    ####    ===> eu preciso sim arrumar isso aí em baixo (e o da função de baixo), para evitar um efeito colateral na passagem de tokens
-
-    #    if (((cromossome[i].count(1) == 0)) or ((cromossome[i].count(1) == 1) and (cromossome[i][0] == 1)) or ((cromossome[i].count(1) == 1) and (cromossome[i][-1] == 1)) or ((cromossome[i].count(1) == 2) and (cromossome[i][0] == 1) and (cromossome[i][-1] == 1))):
-    #        cromossome[i][ran.randrange(1, len(cromossome[i]) - 1)] = 1
-    #for i in range(1, len(cromossome) - 1):
-    #    anyInput = 0
-    #    for j in range(len(cromossome[i]) - 2):
-    #        if cromossome[j][i] == 1:
-    #            anyInput = 1
-    #            break
-    #    if anyInput == 0:
-    #        cromossome[ran.randrange(0, len(cromossome[i]) - 2)][i] = 1
-    return
-
-def operatorsMutation(cromossome, probability):
-
-    ##### ===>>> mudar para trocar de 0 para 1 apenas se tiver pelos menos duas entradas ou saídas
-
     for i in range(0, len(cromossome) - 5, 2):
         for j in range(1, 4):
-            if ran.random() < probability:
+            if ran.random() < operatatorsMutationProbability:
                 if cromossome[i][-j] == 0:
                     cromossome[i][-j] = 1
                 else:
                     cromossome[i][-j] = 0
     for i in range(2, len(cromossome[-1]) - 3, 2):
         for j in range(1, 4):
-            if ran.random() < probability:
+            if ran.random() < operatatorsMutationProbability:
                 if cromossome[-j][i] == 0:
                     cromossome[-j][i] = 1
                 else:
                     cromossome[-j][i] = 0
     return
 
+def mutation(cromossome, tasksMutationProbability, operatatorsMutationProbability, mutationType, mutationTasksNumPerc):
+    if mutationType == 0:
+        basicMutation(cromossome, tasksMutationProbability, operatatorsMutationProbability)
+    else:
+        if mutationType == 1:
+            mutationBVB(mutationTasksNumPerc, cromossome)
+        else:
+            quit(99)
+
 def drivenMutation(auxPopulation, sortedEvaluatedAuxPopulation, drivenMutationPart, mutatedIndividuals):
-#    N_BetterIndividuals = int(drivenMutationPart * len(auxPopulation))
-#    dominantSchema = copy.deepcopy(auxPopulation[0])
-#    for i in range(len(dominantSchema)):
-#        for j in range(len(dominantSchema[i])):
-#            dominantSchema[i][j] = 1
-#    for i in range(N_BetterIndividuals - 1):
-#        mutatedIndividuals[sortedEvaluatedAuxPopulation[i][4]] = 1
-#        for j in range(len(dominantSchema)):
-#            for k in range(len(dominantSchema[j])):
-#                if auxPopulation[sortedEvaluatedAuxPopulation[i][4]][j][k] != auxPopulation[sortedEvaluatedAuxPopulation[i + 1][4]][j][k]:
-#                    dominantSchema[j][k] = 0
-#    mutatedIndividuals[sortedEvaluatedAuxPopulation[i + 1][4]] = 1
-#    for i in range(N_BetterIndividuals):
-#        for j in range(len(dominantSchema)):
-#            for k in range(len(dominantSchema[j])):
-#   if dominantSchema[j][k] == 1:
-#                    if auxPopulation[sortedEvaluatedAuxPopulation[i][4]][j][k] == 0:
-#                        auxPopulation[sortedEvaluatedAuxPopulation[i][4]][j][k] = 1
-#                    else:
-#                        auxPopulation[sortedEvaluatedAuxPopulation[i][4]][j][k] = 0
-    quit(99)
+    N_BetterIndividuals = int(drivenMutationPart * len(auxPopulation))
+    dominantSchema = copy.deepcopy(auxPopulation[0])
+    for i in range(len(dominantSchema)):
+        for j in range(len(dominantSchema[i])):
+            dominantSchema[i][j] = 1
+    for i in range(N_BetterIndividuals - 1):
+        mutatedIndividuals[sortedEvaluatedAuxPopulation[i][5]] = 1
+        for j in range(len(dominantSchema)):
+            for k in range(len(dominantSchema[j])):
+                if auxPopulation[sortedEvaluatedAuxPopulation[i][5]][j][k] != auxPopulation[sortedEvaluatedAuxPopulation[i + 1][5]][j][k]:
+                    dominantSchema[j][k] = 0
+    mutatedIndividuals[sortedEvaluatedAuxPopulation[i + 1][5]] = 1
+    for i in range(N_BetterIndividuals):
+        for j in range(len(dominantSchema)):
+            for k in range(len(dominantSchema[j])):
+                if dominantSchema[j][k] == 1:
+                    if auxPopulation[sortedEvaluatedAuxPopulation[i][5]][j][k] == 0:
+                        auxPopulation[sortedEvaluatedAuxPopulation[i][5]][j][k] = 1
+                    else:
+                        auxPopulation[sortedEvaluatedAuxPopulation[i][5]][j][k] = 0
     return mutatedIndividuals
 
 def elitism(population, elitismPerc, sortedEvaluatedAuxPopulation, sortedEvaluatedPopulation, auxPopulation, drivenMutatedIndividuals):
     for i in range(round(len(population) * elitismPerc)):
         if sortedEvaluatedAuxPopulation[len(sortedEvaluatedAuxPopulation) - 1 - i][0] < sortedEvaluatedPopulation[i][0]:
-            auxPopulation[sortedEvaluatedAuxPopulation[len(sortedEvaluatedAuxPopulation) - 1 - i][4]] = copy.deepcopy(population[sortedEvaluatedPopulation[i][4]])
-            drivenMutatedIndividuals[sortedEvaluatedAuxPopulation[len(sortedEvaluatedAuxPopulation) - 1 - i][4]] = 0
+            auxPopulation[sortedEvaluatedAuxPopulation[len(sortedEvaluatedAuxPopulation) - 1 - i][5]] = copy.deepcopy(population[sortedEvaluatedPopulation[i][5]])
+            drivenMutatedIndividuals[sortedEvaluatedAuxPopulation[len(sortedEvaluatedAuxPopulation) - 1 - i][5]] = 0
         else:
             break
     return
